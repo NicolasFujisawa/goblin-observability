@@ -1,0 +1,71 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.133.0
+    command: ["--config=/conf/collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/conf/collector-config.yaml:ro
+    ports:
+      - "4317:4317"     # OTLP gRPC (apps -> collector)
+      - "4318:4318"     # OTLP HTTP
+      - "8888:8888"     # health / pprof (optional)
+      - "8889:8889"     # prometheus exporter (metrics to be scraped)
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-enterprise:12.2.0-17253726931
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:3.5.3
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki-local-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
+    command: -config.file=/etc/promtail/promtail-config.yaml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:2.8.2
+    command: -config.file=/etc/tempo/local-config.yaml
+    volumes:
+      - ./tempo-local-config.yaml:/etc/tempo/local-config.yaml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # OTLP ingest for traces (HTTP)
+      - "4319:4317"   # OTLP ingest for traces (gRPC)
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
