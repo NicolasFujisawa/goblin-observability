@@ -1,6 +1,7 @@
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.133.0
+    container_name: otel-collector
     command: ["--config=/conf/collector-config.yaml"]
     volumes:
       - ./otel-collector-config.yaml:/conf/collector-config.yaml:ro
@@ -13,18 +14,21 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.5.0
+    container_name: prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-otlp-receiver"
     ports:
       - "9090:9090"
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana-enterprise:12.2.0-17253726931
+    container_name: grafana
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
@@ -35,6 +39,7 @@ services:
 
   loki:
     image: grafana/loki:3.5.3
+    container_name: loki
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - ./loki-local-config.yaml:/etc/loki/local-config.yaml:ro
@@ -43,18 +48,9 @@ services:
       - "3100:3100"
     restart: unless-stopped
 
-  promtail:
-    image: grafana/promtail
-    volumes:
-      - /var/log:/var/log:ro
-      - ./promtail-config.yaml:/etc/promtail/promtail-config.yaml:ro
-    command: -config.file=/etc/promtail/promtail-config.yaml
-    depends_on:
-      - loki
-    restart: unless-stopped
-
   tempo:
     image: grafana/tempo:2.8.2
+    container_name: tempo
     command: -config.file=/etc/tempo/local-config.yaml
     volumes:
       - ./tempo-local-config.yaml:/etc/tempo/local-config.yaml:ro
@@ -69,3 +65,8 @@ volumes:
   grafana_data:
   loki_data:
   tempo_data:
+
+networks:
+  default:
+    external: true
+    name: goblin-network
